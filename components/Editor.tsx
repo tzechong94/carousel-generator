@@ -16,7 +16,8 @@ import { PALETTE_LIST, PALETTES } from "@/lib/palettes";
 import { SAMPLE_JSON } from "@/lib/sample";
 import { downloadAllAsZip, downloadDataUrl, nodeToPng, prepareForExport } from "@/lib/export";
 import { SlideCanvas } from "./SlideCanvas";
-import { ArrowDownToLine, ArrowUpToLine, Circle, Download, FileJson, ImageIcon, Plus, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { ArrowDownToLine, ArrowUpToLine, Circle, Download, FileJson, HelpCircle, ImageIcon, Plus, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { HelpModal } from "./HelpModal";
 
 const STORAGE_KEY = "carousel-generator:v1";
 
@@ -80,6 +81,7 @@ export default function Editor() {
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [exporting, setExporting] = useState<{ kind: "one" } | { kind: "all"; done: number; total: number } | null>(null);
   const [showJson, setShowJson] = useState(true);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // Persist (debounced) — strip image data URLs to avoid blowing localStorage quota.
   useEffect(() => {
@@ -196,6 +198,7 @@ export default function Editor() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#0b0b0c] text-[#e7e7e9]">
+      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
       <Sidebar
         palette={palette}
         setPalette={setPalette}
@@ -211,6 +214,7 @@ export default function Editor() {
         onExportAll={exportAll}
         exportingNow={exportingNow}
         exportLabel={exportLabel}
+        onOpenHelp={() => setHelpOpen(true)}
       />
       <PreviewPane
         slides={slides}
@@ -245,6 +249,7 @@ function Sidebar({
   onExportAll,
   exportingNow,
   exportLabel,
+  onOpenHelp,
 }: {
   palette: PaletteId;
   setPalette: (p: PaletteId) => void;
@@ -260,15 +265,24 @@ function Sidebar({
   onExportAll: () => void;
   exportingNow: boolean;
   exportLabel: string;
+  onOpenHelp: () => void;
 }) {
   return (
     <aside className="w-[420px] flex-shrink-0 border-r border-[#1d1d20] flex flex-col">
       <header className="px-6 py-5 border-b border-[#1d1d20] flex items-center gap-3">
         <Sparkles className="w-5 h-5 text-[#e8b86d]" />
-        <div>
+        <div className="flex-1">
           <h1 className="text-[15px] font-semibold tracking-tight">Carousel Generator</h1>
           <p className="text-xs text-[#7e7e83]">Instagram · {slidesCount} slide{slidesCount === 1 ? "" : "s"}</p>
         </div>
+        <button
+          onClick={onOpenHelp}
+          aria-label="How to use"
+          title="How to use"
+          className="p-1.5 rounded-md text-[#7e7e83] hover:text-white hover:bg-white/5"
+        >
+          <HelpCircle className="w-4 h-4" />
+        </button>
       </header>
 
       <div className="px-6 py-5 border-b border-[#1d1d20] space-y-4">
