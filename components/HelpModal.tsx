@@ -4,6 +4,7 @@ import {
   ArrowDownToLine,
   ArrowUpToLine,
   Circle,
+  Contrast,
   Download,
   FileJson,
   ImageIcon,
@@ -130,7 +131,12 @@ export function HelpModal({ open, onClose }: { open: boolean; onClose: () => voi
                   <Circle className="w-3 h-3" /> /{" "}
                   <ArrowDownToLine className="w-3 h-3" />
                 </span>{" "}
-                to reframe top / center / bottom.
+                to reframe top / center / bottom. Use the{" "}
+                <span className="inline-flex items-center gap-1 align-middle">
+                  <Contrast className="w-3 h-3" />
+                </span>{" "}
+                <kbd className="kbd">0–80%</kbd> dim button to add a tinted
+                overlay when text and image fight each other.
               </>
             }
           />

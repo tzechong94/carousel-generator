@@ -10,6 +10,7 @@ import {
   IMAGE_LAYOUT_DEFAULT_FOR_TYPE,
   IMAGE_LAYOUT_LABEL,
   newSlideId,
+  nextOverlayLevel,
   parseCarouselJson,
   type AspectRatio,
   type ImageFocal,
@@ -22,7 +23,7 @@ import { PALETTE_LIST, PALETTES } from "@/lib/palettes";
 import { SAMPLE_JSON } from "@/lib/sample";
 import { downloadAllAsZip, downloadDataUrl, nodeToPng, prepareForExport } from "@/lib/export";
 import { SlideCanvas } from "./SlideCanvas";
-import { ArrowDownToLine, ArrowUpToLine, Circle, Download, FileJson, HelpCircle, ImageIcon, Move, Plus, RotateCcw, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { ArrowDownToLine, ArrowUpToLine, Circle, Contrast, Download, FileJson, HelpCircle, ImageIcon, Move, Plus, RotateCcw, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { HelpModal } from "./HelpModal";
 
 const STORAGE_KEY = "carousel-generator:v1";
@@ -538,6 +539,16 @@ function PreviewPane({
                   </IconBtn>
                 )}
                 {slide.imageDataUrl && (
+                  <DimBtn
+                    overlay={slide.imageOverlay ?? 0}
+                    onClick={() =>
+                      onUpdateSlide(slide.id, {
+                        imageOverlay: nextOverlayLevel(slide.imageOverlay),
+                      })
+                    }
+                  />
+                )}
+                {slide.imageDataUrl && (
                   <FocalBtn
                     focal={slide.imageFocal ?? "center"}
                     onClick={() => onCycleFocal(slide.id)}
@@ -694,6 +705,20 @@ function LayoutIcon({ kind, className }: { kind: ImageLayout; className?: string
       <line x1="4" y1="13" x2="12" y2="13" stroke={stroke} strokeWidth="1.2" />
       <line x1="5" y1="16" x2="11" y2="16" stroke={stroke} strokeWidth="1.2" />
     </svg>
+  );
+}
+
+function DimBtn({ overlay, onClick }: { overlay: number; onClick: () => void }) {
+  const pct = Math.round(overlay * 100);
+  return (
+    <button
+      onClick={onClick}
+      title={`Image dim: ${pct}% (click to cycle)`}
+      className="flex items-center gap-1 px-2 py-1.5 rounded text-[11px] font-medium text-[#c8c8cb] hover:text-white border border-[#27272a] hover:border-[#404044]"
+    >
+      <Contrast className="w-3.5 h-3.5" />
+      <span>{pct}%</span>
+    </button>
   );
 }
 

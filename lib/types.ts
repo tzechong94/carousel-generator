@@ -66,7 +66,17 @@ export type Slide = SlideData & {
   imageFocal?: ImageFocal;
   imageLayout?: ImageLayout;
   textOffset?: { dx: number; dy: number };
+  imageOverlay?: number;
 };
+
+export const OVERLAY_LEVELS = [0, 0.2, 0.4, 0.6, 0.8] as const;
+
+export function nextOverlayLevel(current: number | undefined): number {
+  const cur = current ?? 0;
+  const idx = OVERLAY_LEVELS.findIndex((l) => Math.abs(l - cur) < 0.001);
+  const nextIdx = (idx + 1) % OVERLAY_LEVELS.length;
+  return OVERLAY_LEVELS[nextIdx];
+}
 
 export function hasTextOffset(s: Slide): boolean {
   if (!s.textOffset) return false;

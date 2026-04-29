@@ -2,7 +2,7 @@
 import { forwardRef, type CSSProperties } from "react";
 import type { ImageLayout, Slide, AspectRatio } from "@/lib/types";
 import { ASPECT_DIMS, effectiveImageLayout, focalToObjectPosition } from "@/lib/types";
-import { PALETTES, fontClass, type PaletteSpec } from "@/lib/palettes";
+import { PALETTES, fontClass, getPaletteFrame, radiusForCorners, type PaletteFrame, type PaletteSpec } from "@/lib/palettes";
 
 type Props = {
   slide: Slide;
@@ -180,6 +180,7 @@ export const SlideCanvas = forwardRef<HTMLDivElement, Props>(function SlideCanva
   const hasImage = !!slide.imageDataUrl;
   const layout: ImageLayout | "none" = hasImage ? effectiveImageLayout(slide) : "none";
   const geo = computeGeo(layout, dims);
+  const frame = getPaletteFrame(paletteId);
 
   const stageStyle: CSSProperties = {
     width: dims.w,
@@ -199,12 +200,31 @@ export const SlideCanvas = forwardRef<HTMLDivElement, Props>(function SlideCanva
       {/* bg layer (gradient hue rotation lives here for gradient palette) */}
       <div style={{ position: "absolute", inset: 0, background: palette.bg, filter: bgFilter }} />
 
-      {/* image layer — positioned per layout */}
-      {hasImage && <ImageLayer slide={slide} layout={layout as ImageLayout} dims={dims} palette={palette} />}
+      {/* image layer — positioned per layout, inset to stay within the palette frame */}
+      {hasImage && (
+        <ImageLayer
+          slide={slide}
+          layout={layout as ImageLayout}
+          dims={dims}
+          palette={palette}
+          frame={frame}
+        />
+      )}
 
-      {/* scrim only for full-bleed */}
+      {/* scrim only for full-bleed — also inset/rounded to match the image */}
       {hasImage && layout === "full" && (
-        <div style={{ position: "absolute", inset: 0, background: palette.scrim, pointerEvents: "none" }} />
+        <div
+          style={{
+            position: "absolute",
+            top: frame.inset,
+            left: frame.inset,
+            right: frame.inset,
+            bottom: frame.inset,
+            background: palette.scrim,
+            borderRadius: radiusForCorners(frame.radius, "all"),
+            pointerEvents: "none",
+          }}
+        />
       )}
 
       {/* text content — positioned per layout, offset by user drag */}
@@ -242,11 +262,13 @@ function ImageLayer({
   layout,
   dims,
   palette,
+  frame,
 }: {
   slide: Slide;
   layout: ImageLayout;
   dims: { w: number; h: number };
   palette: PaletteSpec;
+  frame: PaletteFrame;
 }) {
   const objectPosition = focalToObjectPosition(slide.imageFocal);
   const imgStyle: CSSProperties = {
@@ -255,84 +277,117 @@ function ImageLayer({
     objectFit: "cover",
     objectPosition,
   };
-  if (layout === "full") {
-    return (
-      <img
-        src={slide.imageDataUrl}
-        alt=""
-        style={{ position: "absolute", inset: 0, ...imgStyle }}
+  const inset = frame.inset;
+  const overlay = slide.imageOverlay ?? 0;
+  const overlayEl =
+    overlay > 0 ? (
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: palette.overlayTint,
+          opacity: overlay,
+          pointerEvents: "none",
+        }}
       />
-    );
-  }
-  if (layout === "top") {
-    const h = Math.round(dims.h * 0.46);
+    ) : null;
+
+  if (layout === "full") {
     return (
       <div
         style={{
           position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: h,
+          top: inset,
+          left: inset,
+          right: inset,
+          bottom: inset,
           overflow: "hidden",
+          borderRadius: radiusForCorners(frame.radius, "all"),
         }}
       >
         <img src={slide.imageDataUrl} alt="" style={imgStyle} />
+        {overlayEl}
+      </div>
+    );
+  }
+  if (layout === "top") {
+    const h = Math.round(dims.h * 0.46) - inset;
+    return (
+      <div
+        style={{
+          position: "absolute",
+          top: inset,
+          left: inset,
+          right: inset,
+          height: h,
+          overflow: "hidden",
+          borderRadius: radiusForCorners(frame.radius, "top"),
+        }}
+      >
+        <img src={slide.imageDataUrl} alt="" style={imgStyle} />
+        {overlayEl}
       </div>
     );
   }
   if (layout === "bottom") {
-    const h = Math.round(dims.h * 0.46);
+    const h = Math.round(dims.h * 0.46) - inset;
     return (
       <div
         style={{
           position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
+          bottom: inset,
+          left: inset,
+          right: inset,
           height: h,
           overflow: "hidden",
+          borderRadius: radiusForCorners(frame.radius, "bottom"),
         }}
       >
         <img src={slide.imageDataUrl} alt="" style={imgStyle} />
+        {overlayEl}
       </div>
     );
   }
   if (layout === "left") {
-    const w = Math.round(dims.w * 0.5);
+    const w = Math.round(dims.w * 0.5) - inset;
     return (
       <div
         style={{
           position: "absolute",
-          left: 0,
-          top: 0,
-          bottom: 0,
+          left: inset,
+          top: inset,
+          bottom: inset,
           width: w,
           overflow: "hidden",
+          borderRadius: radiusForCorners(frame.radius, "left"),
         }}
       >
         <img src={slide.imageDataUrl} alt="" style={imgStyle} />
+        {overlayEl}
       </div>
     );
   }
   if (layout === "right") {
-    const w = Math.round(dims.w * 0.5);
+    const w = Math.round(dims.w * 0.5) - inset;
     return (
       <div
         style={{
           position: "absolute",
-          right: 0,
-          top: 0,
-          bottom: 0,
+          right: inset,
+          top: inset,
+          bottom: inset,
           width: w,
           overflow: "hidden",
+          borderRadius: radiusForCorners(frame.radius, "right"),
         }}
       >
         <img src={slide.imageDataUrl} alt="" style={imgStyle} />
+        {overlayEl}
       </div>
     );
   }
   if (layout === "circle") {
+    // circle is centered and small — naturally stays inside the frame, no inset needed
     const size = Math.round(dims.w * 0.32);
     const top = Math.round(dims.h * 0.16);
     return (
@@ -351,6 +406,7 @@ function ImageLayer({
         }}
       >
         <img src={slide.imageDataUrl} alt="" style={imgStyle} />
+        {overlayEl}
       </div>
     );
   }
