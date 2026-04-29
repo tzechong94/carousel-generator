@@ -1,13 +1,19 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ALL_IMAGE_LAYOUTS,
   ASPECT_DIMS,
   attachIds,
+  effectiveImageLayout,
   FOCAL_NEXT,
+  hasTextOffset,
+  IMAGE_LAYOUT_DEFAULT_FOR_TYPE,
+  IMAGE_LAYOUT_LABEL,
   newSlideId,
   parseCarouselJson,
   type AspectRatio,
   type ImageFocal,
+  type ImageLayout,
   type PaletteId,
   type Slide,
   type SlideData,
@@ -16,7 +22,7 @@ import { PALETTE_LIST, PALETTES } from "@/lib/palettes";
 import { SAMPLE_JSON } from "@/lib/sample";
 import { downloadAllAsZip, downloadDataUrl, nodeToPng, prepareForExport } from "@/lib/export";
 import { SlideCanvas } from "./SlideCanvas";
-import { ArrowDownToLine, ArrowUpToLine, Circle, Download, FileJson, HelpCircle, ImageIcon, Plus, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { ArrowDownToLine, ArrowUpToLine, Circle, Download, FileJson, HelpCircle, ImageIcon, Move, Plus, RotateCcw, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { HelpModal } from "./HelpModal";
 
 const STORAGE_KEY = "carousel-generator:v1";
@@ -131,6 +137,23 @@ export default function Editor() {
     setSlides((s) => s.map((sl) => (sl.id === id ? ({ ...sl, ...patch } as Slide) : sl)));
   };
 
+  const onUploadImage = (id: string, dataUrl: string) => {
+    setSlides((s) =>
+      s.map((sl) => {
+        if (sl.id !== id) return sl;
+        return {
+          ...sl,
+          imageDataUrl: dataUrl,
+          imageLayout: sl.imageLayout ?? IMAGE_LAYOUT_DEFAULT_FOR_TYPE[sl.type],
+        } as Slide;
+      })
+    );
+  };
+
+  const setImageLayout = (id: string, layout: ImageLayout) => {
+    updateSlide(id, { imageLayout: layout });
+  };
+
   const cycleFocal = (id: string) => {
     setSlides((s) =>
       s.map((sl) => {
@@ -222,9 +245,11 @@ export default function Editor() {
         aspect={aspect}
         dims={dims}
         setStageRef={setStageRef}
-        onUpload={(id, dataUrl) => updateSlide(id, { imageDataUrl: dataUrl })}
+        onUpload={onUploadImage}
         onRemoveImage={(id) => updateSlide(id, { imageDataUrl: undefined })}
         onCycleFocal={cycleFocal}
+        onSetLayout={setImageLayout}
+        onUpdateSlide={updateSlide}
         onRemoveSlide={removeSlide}
         onAddSlide={addSlide}
         onExportSlide={exportSlide}
@@ -285,29 +310,34 @@ function Sidebar({
         </button>
       </header>
 
-      <div className="px-6 py-5 border-b border-[#1d1d20] space-y-4">
+      <div className="px-6 py-4 border-b border-[#1d1d20] space-y-4">
         <div>
-          <label className="block text-[11px] uppercase tracking-[2px] text-[#7e7e83] mb-2">Palette</label>
-          <div className="grid grid-cols-2 gap-2">
-            {PALETTE_LIST.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setPalette(p.id)}
-                className={`group relative rounded-md overflow-hidden border transition ${
-                  palette === p.id ? "border-white/80" : "border-[#27272a] hover:border-[#404044]"
-                }`}
-                style={{ background: p.preview.bg }}
-              >
-                <div className="h-14 flex items-end justify-between p-2.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="block w-2.5 h-2.5 rounded-full" style={{ background: p.preview.accent }} />
-                    <span className="text-[12px] font-medium" style={{ color: p.preview.fg }}>
-                      {p.name}
-                    </span>
+          <div className="flex items-baseline justify-between mb-2">
+            <label className="block text-[11px] uppercase tracking-[2px] text-[#7e7e83]">Palette</label>
+            <span className="text-[10px] text-[#5a5a5e]">{PALETTE_LIST.length} themes</span>
+          </div>
+          <div className="max-h-[168px] overflow-y-auto scroll-thin pr-1">
+            <div className="grid grid-cols-2 gap-2">
+              {PALETTE_LIST.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setPalette(p.id)}
+                  className={`group relative rounded-md overflow-hidden border transition ${
+                    palette === p.id ? "border-white/80" : "border-[#27272a] hover:border-[#404044]"
+                  }`}
+                  style={{ background: p.preview.bg }}
+                >
+                  <div className="h-12 flex items-end justify-between p-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="block w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: p.preview.accent }} />
+                      <span className="text-[11.5px] font-medium truncate" style={{ color: p.preview.fg }}>
+                        {p.name}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -409,6 +439,8 @@ function PreviewPane({
   onUpload,
   onRemoveImage,
   onCycleFocal,
+  onSetLayout,
+  onUpdateSlide,
   onRemoveSlide,
   onAddSlide,
   onExportSlide,
@@ -422,6 +454,8 @@ function PreviewPane({
   onUpload: (id: string, dataUrl: string) => void;
   onRemoveImage: (id: string) => void;
   onCycleFocal: (id: string) => void;
+  onSetLayout: (id: string, layout: ImageLayout) => void;
+  onUpdateSlide: (id: string, patch: Partial<Slide>) => void;
   onRemoveSlide: (id: string) => void;
   onAddSlide: (afterIndex: number, type: SlideData["type"]) => void;
   onExportSlide: (slide: Slide, idx: number) => void;
@@ -431,6 +465,48 @@ function PreviewPane({
   const scale = targetH / dims.h;
   const displayW = Math.round(dims.w * scale);
   const displayH = Math.round(dims.h * scale);
+
+  const [drag, setDrag] = useState<{
+    id: string;
+    startX: number;
+    startY: number;
+    startDx: number;
+    startDy: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!drag) return;
+    const onMove = (e: MouseEvent) => {
+      const dx = (e.clientX - drag.startX) / scale;
+      const dy = (e.clientY - drag.startY) / scale;
+      onUpdateSlide(drag.id, {
+        textOffset: { dx: drag.startDx + dx, dy: drag.startDy + dy },
+      });
+    };
+    const onUp = () => setDrag(null);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "grabbing";
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    };
+  }, [drag, scale, onUpdateSlide]);
+
+  const startDrag = (slide: Slide, e: React.MouseEvent) => {
+    e.preventDefault();
+    const offset = slide.textOffset ?? { dx: 0, dy: 0 };
+    setDrag({
+      id: slide.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      startDx: offset.dx,
+      startDy: offset.dy,
+    });
+  };
 
   return (
     <main className="flex-1 overflow-auto scroll-thin">
@@ -453,6 +529,14 @@ function PreviewPane({
                 {String(i + 1).padStart(2, "0")} · {slide.type}
               </div>
               <div className="flex items-center gap-1.5">
+                {hasTextOffset(slide) && (
+                  <IconBtn
+                    title="Reset text position"
+                    onClick={() => onUpdateSlide(slide.id, { textOffset: undefined })}
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </IconBtn>
+                )}
                 {slide.imageDataUrl && (
                   <FocalBtn
                     focal={slide.imageFocal ?? "center"}
@@ -476,9 +560,21 @@ function PreviewPane({
                 </IconBtn>
               </div>
             </div>
+            {slide.imageDataUrl && (
+              <LayoutPicker
+                current={effectiveImageLayout(slide)}
+                onSelect={(l) => onSetLayout(slide.id, l)}
+              />
+            )}
             <div
-              style={{ width: displayW, height: displayH }}
-              className="relative shadow-[0_30px_60px_-20px_rgba(0,0,0,0.6)] rounded-md overflow-hidden ring-1 ring-[#1d1d20]"
+              onMouseDown={(e) => startDrag(slide, e)}
+              style={{
+                width: displayW,
+                height: displayH,
+                cursor: drag?.id === slide.id ? "grabbing" : "grab",
+              }}
+              className="relative shadow-[0_30px_60px_-20px_rgba(0,0,0,0.6)] rounded-md overflow-hidden ring-1 ring-[#1d1d20] select-none"
+              title="Drag to reposition text"
             >
               <div
                 style={{
@@ -486,6 +582,7 @@ function PreviewPane({
                   height: dims.h,
                   transform: `scale(${scale})`,
                   transformOrigin: "top left",
+                  pointerEvents: "none",
                 }}
               >
                 <SlideCanvas
@@ -498,6 +595,12 @@ function PreviewPane({
                   slideIndex={i}
                 />
               </div>
+              {drag?.id === slide.id && (
+                <div className="absolute top-2 right-2 px-2 py-1 rounded bg-black/70 text-white text-[10px] font-mono pointer-events-none">
+                  <Move className="inline w-3 h-3 mr-1" />
+                  {Math.round(slide.textOffset?.dx ?? 0)}, {Math.round(slide.textOffset?.dy ?? 0)}
+                </div>
+              )}
             </div>
 
             <InsertSlideRow onInsert={(t) => onAddSlide(i, t)} />
@@ -505,6 +608,92 @@ function PreviewPane({
         ))}
       </div>
     </main>
+  );
+}
+
+function LayoutPicker({
+  current,
+  onSelect,
+}: {
+  current: ImageLayout;
+  onSelect: (l: ImageLayout) => void;
+}) {
+  return (
+    <div className="w-full flex items-center justify-end gap-1.5">
+      <span className="text-[10px] uppercase tracking-[2px] text-[#5a5a5e] mr-1">Layout</span>
+      {ALL_IMAGE_LAYOUTS.map((l) => {
+        const active = current === l;
+        return (
+          <button
+            key={l}
+            onClick={() => onSelect(l)}
+            title={IMAGE_LAYOUT_LABEL[l]}
+            aria-label={`Image layout: ${IMAGE_LAYOUT_LABEL[l]}`}
+            aria-pressed={active}
+            className={`p-1.5 rounded border transition ${
+              active
+                ? "bg-white text-black border-white"
+                : "border-[#27272a] hover:border-[#404044] text-[#c8c8cb] hover:text-white"
+            }`}
+          >
+            <LayoutIcon kind={l} className="w-4 h-5" />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function LayoutIcon({ kind, className }: { kind: ImageLayout; className?: string }) {
+  const stroke = "currentColor";
+  const fill = "currentColor";
+  if (kind === "full") {
+    return (
+      <svg viewBox="0 0 16 20" className={className} aria-hidden="true">
+        <rect x="1" y="1" width="14" height="18" fill={fill} rx="1.5" />
+      </svg>
+    );
+  }
+  if (kind === "top") {
+    return (
+      <svg viewBox="0 0 16 20" className={className} aria-hidden="true">
+        <rect x="1" y="1" width="14" height="9" fill={fill} rx="1.5" />
+        <rect x="1" y="11" width="14" height="8" fill="none" stroke={stroke} rx="1.5" />
+      </svg>
+    );
+  }
+  if (kind === "bottom") {
+    return (
+      <svg viewBox="0 0 16 20" className={className} aria-hidden="true">
+        <rect x="1" y="1" width="14" height="8" fill="none" stroke={stroke} rx="1.5" />
+        <rect x="1" y="10" width="14" height="9" fill={fill} rx="1.5" />
+      </svg>
+    );
+  }
+  if (kind === "left") {
+    return (
+      <svg viewBox="0 0 16 20" className={className} aria-hidden="true">
+        <rect x="1" y="1" width="6.5" height="18" fill={fill} rx="1.5" />
+        <rect x="8.5" y="1" width="6.5" height="18" fill="none" stroke={stroke} rx="1.5" />
+      </svg>
+    );
+  }
+  if (kind === "right") {
+    return (
+      <svg viewBox="0 0 16 20" className={className} aria-hidden="true">
+        <rect x="1" y="1" width="6.5" height="18" fill="none" stroke={stroke} rx="1.5" />
+        <rect x="8.5" y="1" width="6.5" height="18" fill={fill} rx="1.5" />
+      </svg>
+    );
+  }
+  // circle
+  return (
+    <svg viewBox="0 0 16 20" className={className} aria-hidden="true">
+      <rect x="1" y="1" width="14" height="18" fill="none" stroke={stroke} rx="1.5" />
+      <circle cx="8" cy="7" r="3" fill={fill} />
+      <line x1="4" y1="13" x2="12" y2="13" stroke={stroke} strokeWidth="1.2" />
+      <line x1="5" y1="16" x2="11" y2="16" stroke={stroke} strokeWidth="1.2" />
+    </svg>
   );
 }
 

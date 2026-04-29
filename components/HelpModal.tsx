@@ -8,6 +8,7 @@ import {
   FileJson,
   ImageIcon,
   Keyboard,
+  Move,
   Palette,
   Plus,
   Sparkles,
@@ -103,8 +104,10 @@ export function HelpModal({ open, onClose }: { open: boolean; onClose: () => voi
             title="Pick a palette and aspect ratio"
             body={
               <>
-                Four palettes — <em>Noir editorial</em>, <em>Soft pastel</em>,{" "}
-                <em>Bold gradient</em>, <em>Minimal Swiss</em>. Toggle between{" "}
+                Eight palettes — <em>Noir editorial</em>, <em>Soft pastel</em>,{" "}
+                <em>Bold gradient</em>, <em>Minimal Swiss</em>,{" "}
+                <em>Sage &amp; terracotta</em>, <em>Mocha mousse</em>,{" "}
+                <em>Dopamine pop</em>, <em>Newsprint</em>. Toggle between{" "}
                 <Code>4:5</Code> portrait (1080×1350) and <Code>1:1</Code> square
                 (1080×1080) anytime.
               </>
@@ -114,13 +117,14 @@ export function HelpModal({ open, onClose }: { open: boolean; onClose: () => voi
           <Step
             n={3}
             icon={<ImageIcon className="w-4 h-4" />}
-            title="Add an image to any slide"
+            title="Add an image and pick a layout"
             body={
               <>
-                Click <kbd className="kbd">Image</kbd> on a slide row to upload. The
-                image renders by slide type — cover gets full-bleed with a scrim,
-                content puts it on top as a hero, CTA uses it as a circular avatar.
-                Cycle focal point with{" "}
+                Click <kbd className="kbd">Image</kbd> on a slide to upload. After
+                uploading, a row of 6 layout options appears —{" "}
+                <Code>Full</Code>, <Code>Top</Code>, <Code>Bottom</Code>,{" "}
+                <Code>Left</Code>, <Code>Right</Code>, <Code>Circle</Code>. The
+                text region adapts to the layout you pick. Cycle focal point with{" "}
                 <span className="inline-flex items-center gap-1 align-middle">
                   <ArrowUpToLine className="w-3 h-3" /> /{" "}
                   <Circle className="w-3 h-3" /> /{" "}
@@ -133,6 +137,19 @@ export function HelpModal({ open, onClose }: { open: boolean; onClose: () => voi
 
           <Step
             n={4}
+            icon={<Move className="w-4 h-4" />}
+            title="Drag to reposition the text"
+            body={
+              <>
+                Click and drag anywhere on a slide to move the text block. A live
+                offset readout appears while you drag. The reset button in the
+                slide controls clears the offset back to default.
+              </>
+            }
+          />
+
+          <Step
+            n={5}
             icon={<Plus className="w-4 h-4" />}
             title="Add or remove slides"
             body={
@@ -149,7 +166,7 @@ export function HelpModal({ open, onClose }: { open: boolean; onClose: () => voi
           />
 
           <Step
-            n={5}
+            n={6}
             icon={<Download className="w-4 h-4" />}
             title="Export as PNG"
             body={

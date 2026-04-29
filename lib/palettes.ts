@@ -62,9 +62,66 @@ export const PALETTES: Record<PaletteId, PaletteSpec> = {
     display: "grotesk",
     body: "grotesk",
   },
+  sage: {
+    id: "sage",
+    name: "Sage & terracotta",
+    preview: { bg: "#e6e3d3", fg: "#2f3a2f", accent: "#c47b56" },
+    bg: "#e6e3d3",
+    fg: "#2f3a2f",
+    muted: "#67705f",
+    accent: "#c47b56",
+    scrim: "linear-gradient(180deg, rgba(47,58,47,0) 40%, rgba(47,58,47,0.65) 100%)",
+    display: "serif",
+    body: "sans",
+  },
+  mocha: {
+    id: "mocha",
+    name: "Mocha mousse",
+    preview: { bg: "#1f1612", fg: "#ead7c0", accent: "#a47864" },
+    bg: "#1f1612",
+    fg: "#ead7c0",
+    muted: "#a4937d",
+    accent: "#c9a27e",
+    scrim: "linear-gradient(180deg, rgba(31,22,18,0) 30%, rgba(31,22,18,0.85) 100%)",
+    display: "serif",
+    body: "sans",
+  },
+  dopamine: {
+    id: "dopamine",
+    name: "Dopamine pop",
+    preview: { bg: "#fff7d6", fg: "#0a0a0a", accent: "#ff2d8a" },
+    bg: "#fff7d6",
+    fg: "#0a0a0a",
+    muted: "#5a5a5a",
+    accent: "#ff2d8a",
+    scrim: "linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.55) 100%)",
+    display: "grotesk",
+    body: "grotesk",
+  },
+  newsprint: {
+    id: "newsprint",
+    name: "Newsprint",
+    preview: { bg: "#f1ece0", fg: "#0a0a0a", accent: "#c8362e" },
+    bg: "#f1ece0",
+    fg: "#0a0a0a",
+    muted: "#535353",
+    accent: "#c8362e",
+    scrim: "linear-gradient(180deg, rgba(10,10,10,0) 40%, rgba(10,10,10,0.65) 100%)",
+    display: "serif",
+    body: "sans",
+  },
 };
 
-export const PALETTE_LIST: PaletteSpec[] = [PALETTES.noir, PALETTES.pastel, PALETTES.gradient, PALETTES.swiss];
+export const PALETTE_LIST: PaletteSpec[] = [
+  PALETTES.noir,
+  PALETTES.pastel,
+  PALETTES.gradient,
+  PALETTES.swiss,
+  PALETTES.sage,
+  PALETTES.mocha,
+  PALETTES.dopamine,
+  PALETTES.newsprint,
+];
 
 export function fontClass(kind: "serif" | "grotesk" | "sans"): string {
   if (kind === "serif") return "font-serif-display";

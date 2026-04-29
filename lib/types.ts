@@ -5,7 +5,15 @@ export const ASPECT_DIMS: Record<AspectRatio, { w: number; h: number }> = {
   "4:5": { w: 1080, h: 1350 },
 };
 
-export type PaletteId = "noir" | "pastel" | "gradient" | "swiss";
+export type PaletteId =
+  | "noir"
+  | "pastel"
+  | "gradient"
+  | "swiss"
+  | "sage"
+  | "mocha"
+  | "dopamine"
+  | "newsprint";
 
 export type CoverSlide = {
   type: "cover";
@@ -33,11 +41,41 @@ export type SlideData = CoverSlide | ContentSlide | CtaSlide;
 
 export type ImageFocal = "top" | "center" | "bottom";
 
+export type ImageLayout = "full" | "top" | "bottom" | "left" | "right" | "circle";
+
+export const ALL_IMAGE_LAYOUTS: ImageLayout[] = ["full", "top", "bottom", "left", "right", "circle"];
+
+export const IMAGE_LAYOUT_DEFAULT_FOR_TYPE: Record<SlideData["type"], ImageLayout> = {
+  cover: "full",
+  content: "top",
+  cta: "circle",
+};
+
+export const IMAGE_LAYOUT_LABEL: Record<ImageLayout, string> = {
+  full: "Full",
+  top: "Top",
+  bottom: "Bottom",
+  left: "Left",
+  right: "Right",
+  circle: "Circle",
+};
+
 export type Slide = SlideData & {
   id: string;
   imageDataUrl?: string;
   imageFocal?: ImageFocal;
+  imageLayout?: ImageLayout;
+  textOffset?: { dx: number; dy: number };
 };
+
+export function hasTextOffset(s: Slide): boolean {
+  if (!s.textOffset) return false;
+  return Math.abs(s.textOffset.dx) > 0.5 || Math.abs(s.textOffset.dy) > 0.5;
+}
+
+export function effectiveImageLayout(slide: Slide): ImageLayout {
+  return slide.imageLayout ?? IMAGE_LAYOUT_DEFAULT_FOR_TYPE[slide.type];
+}
 
 export const FOCAL_NEXT: Record<ImageFocal, ImageFocal> = {
   top: "center",
@@ -56,8 +94,19 @@ export type CarouselDoc = {
   slides: SlideData[];
 };
 
+const PALETTE_IDS = new Set<string>([
+  "noir",
+  "pastel",
+  "gradient",
+  "swiss",
+  "sage",
+  "mocha",
+  "dopamine",
+  "newsprint",
+]);
+
 export function isPaletteId(v: unknown): v is PaletteId {
-  return v === "noir" || v === "pastel" || v === "gradient" || v === "swiss";
+  return typeof v === "string" && PALETTE_IDS.has(v);
 }
 
 export function parseCarouselJson(text: string): { ok: true; doc: CarouselDoc } | { ok: false; error: string } {
@@ -71,7 +120,11 @@ export function parseCarouselJson(text: string): { ok: true; doc: CarouselDoc } 
   const obj = raw as Record<string, unknown>;
   const palette = obj.palette;
   if (!isPaletteId(palette)) {
-    return { ok: false, error: 'palette must be "noir" | "pastel" | "gradient" | "swiss"' };
+    return {
+      ok: false,
+      error:
+        'palette must be one of: "noir" | "pastel" | "gradient" | "swiss" | "sage" | "mocha" | "dopamine" | "newsprint"',
+    };
   }
   const slidesRaw = obj.slides;
   if (!Array.isArray(slidesRaw)) return { ok: false, error: "slides must be an array" };
