@@ -211,17 +211,13 @@ export const SlideCanvas = forwardRef<HTMLDivElement, Props>(function SlideCanva
         />
       )}
 
-      {/* scrim only for full-bleed — also inset/rounded to match the image */}
+      {/* scrim only for full-bleed — spans the whole slide to match the image */}
       {hasImage && layout === "full" && (
         <div
           style={{
             position: "absolute",
-            top: frame.inset,
-            left: frame.inset,
-            right: frame.inset,
-            bottom: frame.inset,
+            inset: 0,
             background: palette.scrim,
-            borderRadius: radiusForCorners(frame.radius, "all"),
             pointerEvents: "none",
           }}
         />
@@ -278,6 +274,11 @@ function ImageLayer({
     objectPosition,
   };
   const inset = frame.inset;
+  // Visible gap between the palette frame and partial-layout images so they
+  // float inside the frame instead of sitting flush against the line.
+  // Only applies when the palette actually has a frame (inset > 0).
+  const gap = inset > 0 ? 14 : 0;
+  const innerRadius = frame.radius && gap > 0 ? Math.max(8, frame.radius - gap) : frame.radius;
   const overlay = slide.imageOverlay ?? 0;
   const overlayEl =
     overlay > 0 ? (
@@ -293,16 +294,13 @@ function ImageLayer({
     ) : null;
 
   if (layout === "full") {
+    // Full layout truly bleeds to the slide edge — palette frame sits on top of the image.
     return (
       <div
         style={{
           position: "absolute",
-          top: inset,
-          left: inset,
-          right: inset,
-          bottom: inset,
+          inset: 0,
           overflow: "hidden",
-          borderRadius: radiusForCorners(frame.radius, "all"),
         }}
       >
         <img src={slide.imageDataUrl} alt="" style={imgStyle} />
@@ -311,17 +309,17 @@ function ImageLayer({
     );
   }
   if (layout === "top") {
-    const h = Math.round(dims.h * 0.46) - inset;
+    const h = Math.round(dims.h * 0.46) - inset - gap;
     return (
       <div
         style={{
           position: "absolute",
-          top: inset,
-          left: inset,
-          right: inset,
+          top: inset + gap,
+          left: inset + gap,
+          right: inset + gap,
           height: h,
           overflow: "hidden",
-          borderRadius: radiusForCorners(frame.radius, "top"),
+          borderRadius: gap > 0 ? innerRadius : radiusForCorners(frame.radius, "top"),
         }}
       >
         <img src={slide.imageDataUrl} alt="" style={imgStyle} />
@@ -330,17 +328,17 @@ function ImageLayer({
     );
   }
   if (layout === "bottom") {
-    const h = Math.round(dims.h * 0.46) - inset;
+    const h = Math.round(dims.h * 0.46) - inset - gap;
     return (
       <div
         style={{
           position: "absolute",
-          bottom: inset,
-          left: inset,
-          right: inset,
+          bottom: inset + gap,
+          left: inset + gap,
+          right: inset + gap,
           height: h,
           overflow: "hidden",
-          borderRadius: radiusForCorners(frame.radius, "bottom"),
+          borderRadius: gap > 0 ? innerRadius : radiusForCorners(frame.radius, "bottom"),
         }}
       >
         <img src={slide.imageDataUrl} alt="" style={imgStyle} />
@@ -349,17 +347,17 @@ function ImageLayer({
     );
   }
   if (layout === "left") {
-    const w = Math.round(dims.w * 0.5) - inset;
+    const w = Math.round(dims.w * 0.5) - inset - gap;
     return (
       <div
         style={{
           position: "absolute",
-          left: inset,
-          top: inset,
-          bottom: inset,
+          left: inset + gap,
+          top: inset + gap,
+          bottom: inset + gap,
           width: w,
           overflow: "hidden",
-          borderRadius: radiusForCorners(frame.radius, "left"),
+          borderRadius: gap > 0 ? innerRadius : radiusForCorners(frame.radius, "left"),
         }}
       >
         <img src={slide.imageDataUrl} alt="" style={imgStyle} />
@@ -368,17 +366,17 @@ function ImageLayer({
     );
   }
   if (layout === "right") {
-    const w = Math.round(dims.w * 0.5) - inset;
+    const w = Math.round(dims.w * 0.5) - inset - gap;
     return (
       <div
         style={{
           position: "absolute",
-          right: inset,
-          top: inset,
-          bottom: inset,
+          right: inset + gap,
+          top: inset + gap,
+          bottom: inset + gap,
           width: w,
           overflow: "hidden",
-          borderRadius: radiusForCorners(frame.radius, "right"),
+          borderRadius: gap > 0 ? innerRadius : radiusForCorners(frame.radius, "right"),
         }}
       >
         <img src={slide.imageDataUrl} alt="" style={imgStyle} />
