@@ -6,24 +6,29 @@ import {
   attachIds,
   effectiveImageLayout,
   FOCAL_NEXT,
+  HANDLE_ALIGN_NEXT,
+  hasHandleOffset,
   hasTextOffset,
   IMAGE_LAYOUT_DEFAULT_FOR_TYPE,
   IMAGE_LAYOUT_LABEL,
   newSlideId,
   nextOverlayLevel,
   parseCarouselJson,
+  TEXT_TONE_NEXT,
   type AspectRatio,
+  type HandleAlign,
   type ImageFocal,
   type ImageLayout,
   type PaletteId,
   type Slide,
   type SlideData,
+  type TextTone,
 } from "@/lib/types";
 import { PALETTE_LIST, PALETTES } from "@/lib/palettes";
 import { SAMPLE_JSON } from "@/lib/sample";
-import { downloadAllAsZip, downloadDataUrl, nodeToPng, prepareForExport } from "@/lib/export";
+import { dataUrlExtension, dataUrlToBase64, downloadAllAsZip, downloadDataUrl, nodeToPng, prepareForExport, readProjectZip } from "@/lib/export";
 import { SlideCanvas } from "./SlideCanvas";
-import { ArrowDownToLine, ArrowUpToLine, Circle, Contrast, Download, FileJson, HelpCircle, ImageIcon, Move, Plus, RotateCcw, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, ArrowDownToLine, ArrowUpToLine, Circle, Contrast, Download, FileJson, HelpCircle, ImageIcon, Move, Plus, RotateCcw, Sparkles, Trash2, Type, Upload, X } from "lucide-react";
 import { HelpModal } from "./HelpModal";
 
 const STORAGE_KEY = "carousel-generator:v1";
@@ -128,6 +133,12 @@ export default function Editor() {
         if (next[i].type === prev[i].type) {
           if (prev[i].imageDataUrl) next[i].imageDataUrl = prev[i].imageDataUrl;
           if (prev[i].imageFocal) next[i].imageFocal = prev[i].imageFocal;
+          if (prev[i].imageLayout) next[i].imageLayout = prev[i].imageLayout;
+          if (prev[i].imageOverlay !== undefined) next[i].imageOverlay = prev[i].imageOverlay;
+          if (prev[i].textOffset) next[i].textOffset = prev[i].textOffset;
+          if (prev[i].handleOffset) next[i].handleOffset = prev[i].handleOffset;
+          if (prev[i].handleAlign) next[i].handleAlign = prev[i].handleAlign;
+          if (prev[i].textTone) next[i].textTone = prev[i].textTone;
         }
       }
       return next;
@@ -137,6 +148,22 @@ export default function Editor() {
   const updateSlide = (id: string, patch: Partial<Slide>) => {
     setSlides((s) => s.map((sl) => (sl.id === id ? ({ ...sl, ...patch } as Slide) : sl)));
   };
+
+  const changePalette = useCallback((id: PaletteId) => {
+    setPalette(id);
+    setJsonText((prev) => {
+      const re = /("palette"\s*:\s*")[^"]*(")/;
+      if (re.test(prev)) return prev.replace(re, `$1${id}$2`);
+      try {
+        const parsed = JSON.parse(prev);
+        if (parsed && typeof parsed === "object") {
+          (parsed as Record<string, unknown>).palette = id;
+          return JSON.stringify(parsed, null, 2);
+        }
+      } catch {}
+      return prev;
+    });
+  }, []);
 
   const onUploadImage = (id: string, dataUrl: string) => {
     setSlides((s) =>
@@ -198,6 +225,26 @@ export default function Editor() {
     setExporting({ kind: "all", done: 0, total });
     try {
       const pngs: { name: string; dataUrl: string }[] = [];
+      const extras: ({ name: string; text: string } | { name: string; base64: string })[] = [];
+      const projectSlides = slides.map((s, i) => {
+        const slot = String(i + 1).padStart(2, "0");
+        let imageFile: string | undefined;
+        if (s.imageDataUrl) {
+          const ext = dataUrlExtension(s.imageDataUrl);
+          imageFile = `images/slide-${slot}.${ext}`;
+          extras.push({ name: imageFile, base64: dataUrlToBase64(s.imageDataUrl) });
+        }
+        const { id: _id, imageDataUrl: _img, ...rest } = s;
+        return imageFile ? { ...rest, imageFile } : rest;
+      });
+      const projectJson = {
+        version: 1,
+        palette,
+        aspect,
+        slides: projectSlides,
+      };
+      extras.unshift({ name: "carousel.json", text: JSON.stringify(projectJson, null, 2) });
+
       for (let i = 0; i < slides.length; i++) {
         const node = stageRefs.current.get(slides[i].id);
         if (!node) continue;
@@ -206,10 +253,79 @@ export default function Editor() {
         pngs.push({ name: `slide-${String(i + 1).padStart(2, "0")}.png`, dataUrl });
         setExporting({ kind: "all", done: i + 1, total });
       }
-      await downloadAllAsZip(pngs, `carousel-${palette}-${aspect.replace(":", "x")}.zip`);
+      await downloadAllAsZip(pngs, `carousel-${palette}-${aspect.replace(":", "x")}.zip`, extras);
     } finally {
       setExporting(null);
     }
+  };
+
+  const importProjectZip = async (file: File) => {
+    const { project, images } = await readProjectZip(file);
+    if (!project || typeof project !== "object") {
+      setJsonError("ZIP missing or invalid carousel.json");
+      return;
+    }
+    const p = project as Record<string, unknown>;
+    const nextPalette = typeof p.palette === "string" ? (p.palette as PaletteId) : palette;
+    const nextAspect = p.aspect === "1:1" || p.aspect === "4:5" ? (p.aspect as AspectRatio) : aspect;
+    const slidesRaw = Array.isArray(p.slides) ? p.slides : [];
+
+    const contentSlides: SlideData[] = [];
+    const uiBySlot: Partial<Slide>[] = [];
+    for (const raw of slidesRaw) {
+      if (!raw || typeof raw !== "object") continue;
+      const r = raw as Record<string, unknown>;
+      if (r.type === "cover" && typeof r.title === "string") {
+        contentSlides.push({
+          type: "cover",
+          title: r.title,
+          eyebrow: typeof r.eyebrow === "string" ? r.eyebrow : undefined,
+          subtitle: typeof r.subtitle === "string" ? r.subtitle : undefined,
+        });
+      } else if (r.type === "content" && typeof r.heading === "string") {
+        contentSlides.push({
+          type: "content",
+          heading: r.heading,
+          body: typeof r.body === "string" ? r.body : undefined,
+          index: typeof r.index === "number" ? r.index : undefined,
+          bullets: Array.isArray(r.bullets) ? r.bullets.filter((b): b is string => typeof b === "string") : undefined,
+        });
+      } else if (r.type === "cta" && typeof r.title === "string") {
+        contentSlides.push({
+          type: "cta",
+          title: r.title,
+          subtitle: typeof r.subtitle === "string" ? r.subtitle : undefined,
+          handle: typeof r.handle === "string" ? r.handle : undefined,
+        });
+      } else {
+        continue;
+      }
+      const ui: Partial<Slide> = {};
+      if (typeof r.imageFile === "string" && images[r.imageFile]) ui.imageDataUrl = images[r.imageFile];
+      if (r.imageLayout === "full" || r.imageLayout === "top" || r.imageLayout === "bottom" || r.imageLayout === "left" || r.imageLayout === "right" || r.imageLayout === "circle") ui.imageLayout = r.imageLayout;
+      if (r.imageFocal === "top" || r.imageFocal === "center" || r.imageFocal === "bottom") ui.imageFocal = r.imageFocal;
+      if (typeof r.imageOverlay === "number") ui.imageOverlay = r.imageOverlay;
+      if (r.textTone === "light" || r.textTone === "dark") ui.textTone = r.textTone;
+      if (r.textOffset && typeof r.textOffset === "object") {
+        const o = r.textOffset as Record<string, unknown>;
+        if (typeof o.dx === "number" && typeof o.dy === "number") ui.textOffset = { dx: o.dx, dy: o.dy };
+      }
+      if (r.handleOffset && typeof r.handleOffset === "object") {
+        const o = r.handleOffset as Record<string, unknown>;
+        if (typeof o.dx === "number" && typeof o.dy === "number") ui.handleOffset = { dx: o.dx, dy: o.dy };
+      }
+      if (r.handleAlign === "left" || r.handleAlign === "center" || r.handleAlign === "right") ui.handleAlign = r.handleAlign;
+      uiBySlot.push(ui);
+    }
+
+    const withIds = attachIds(contentSlides);
+    const merged: Slide[] = withIds.map((s, i) => ({ ...s, ...uiBySlot[i] } as Slide));
+
+    setJsonError(null);
+    setPalette(nextPalette);
+    setAspect(nextAspect);
+    setSlides(merged);
+    setJsonText(JSON.stringify({ palette: nextPalette, slides: contentSlides }, null, 2));
   };
 
   const exportingNow = exporting !== null;
@@ -225,7 +341,7 @@ export default function Editor() {
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
       <Sidebar
         palette={palette}
-        setPalette={setPalette}
+        setPalette={changePalette}
         aspect={aspect}
         setAspect={setAspect}
         jsonText={jsonText}
@@ -236,6 +352,7 @@ export default function Editor() {
         setShowJson={setShowJson}
         slidesCount={slides.length}
         onExportAll={exportAll}
+        onImportZip={importProjectZip}
         exportingNow={exportingNow}
         exportLabel={exportLabel}
         onOpenHelp={() => setHelpOpen(true)}
@@ -273,6 +390,7 @@ function Sidebar({
   setShowJson,
   slidesCount,
   onExportAll,
+  onImportZip,
   exportingNow,
   exportLabel,
   onOpenHelp,
@@ -289,12 +407,13 @@ function Sidebar({
   setShowJson: (b: boolean) => void;
   slidesCount: number;
   onExportAll: () => void;
+  onImportZip: (file: File) => void;
   exportingNow: boolean;
   exportLabel: string;
   onOpenHelp: () => void;
 }) {
   return (
-    <aside className="w-[420px] flex-shrink-0 border-r border-[#1d1d20] flex flex-col">
+    <aside className="w-[680px] flex-shrink-0 border-r border-[#1d1d20] flex flex-col">
       <header className="px-6 py-5 border-b border-[#1d1d20] flex items-center gap-3">
         <Sparkles className="w-5 h-5 text-[#e8b86d]" />
         <div className="flex-1">
@@ -311,123 +430,153 @@ function Sidebar({
         </button>
       </header>
 
-      <div className="px-6 py-4 border-b border-[#1d1d20] space-y-4">
-        <div>
-          <div className="flex items-baseline justify-between mb-2">
-            <label className="block text-[11px] uppercase tracking-[2px] text-[#7e7e83]">Palette</label>
-            <span className="text-[10px] text-[#5a5a5e]">{PALETTE_LIST.length} themes</span>
-          </div>
-          <div className="max-h-[168px] overflow-y-auto scroll-thin pr-1">
-            <div className="grid grid-cols-2 gap-2">
-              {PALETTE_LIST.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setPalette(p.id)}
-                  className={`group relative rounded-md overflow-hidden border transition ${
-                    palette === p.id ? "border-white/80" : "border-[#27272a] hover:border-[#404044]"
-                  }`}
-                  style={{ background: p.preview.bg }}
-                >
-                  <div className="h-12 flex items-end justify-between p-2">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="block w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: p.preview.accent }} />
-                      <span className="text-[11.5px] font-medium truncate" style={{ color: p.preview.fg }}>
-                        {p.name}
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-[11px] uppercase tracking-[2px] text-[#7e7e83] mb-2">Aspect ratio</label>
-          <div className="grid grid-cols-2 gap-2">
-            {(["4:5", "1:1"] as const).map((a) => (
-              <button
-                key={a}
-                onClick={() => setAspect(a)}
-                className={`px-3 py-2 rounded-md text-sm font-medium border transition ${
-                  aspect === a
-                    ? "bg-white text-black border-white"
-                    : "border-[#27272a] hover:border-[#404044] text-[#c8c8cb]"
-                }`}
-              >
-                {a === "4:5" ? "4:5 portrait" : "1:1 square"}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 flex flex-col min-h-0">
-        <button
-          onClick={() => setShowJson(!showJson)}
-          className="px-6 py-3 border-b border-[#1d1d20] flex items-center justify-between text-[11px] uppercase tracking-[2px] text-[#7e7e83] hover:text-white"
-        >
-          <span className="flex items-center gap-2">
-            <FileJson className="w-3.5 h-3.5" /> JSON Input
-          </span>
-          <span>{showJson ? "−" : "+"}</span>
-        </button>
-        {showJson && (
-          <div className="flex-1 flex flex-col min-h-0 px-6 py-4 gap-3">
-            <textarea
-              value={jsonText}
-              onChange={(e) => setJsonText(e.target.value)}
-              spellCheck={false}
-              autoCorrect="off"
-              autoCapitalize="off"
-              onKeyDown={(e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                  e.preventDefault();
-                  applyJson();
-                }
-              }}
-              className="flex-1 min-h-0 w-full font-mono text-[11.5px] leading-[1.55] bg-[#111114] border border-[#1d1d20] rounded-md p-3 resize-none text-[#d4d4d8] focus:outline-none focus:border-[#3a3a40] scroll-thin"
-              placeholder="Paste JSON here…"
-            />
-            {jsonError && (
-              <div className="text-[12px] text-[#ff8888] bg-[#2a1414] border border-[#3a1c1c] rounded-md px-3 py-2">
-                {jsonError}
+      <div className="flex-1 flex min-h-0">
+        <div className="w-[260px] flex-shrink-0 border-r border-[#1d1d20] flex flex-col min-h-0">
+          <div className="px-5 py-4 space-y-4 overflow-y-auto scroll-thin">
+            <div>
+              <div className="flex items-baseline justify-between mb-2">
+                <label className="block text-[11px] uppercase tracking-[2px] text-[#7e7e83]">Palette</label>
+                <span className="text-[10px] text-[#5a5a5e]">{PALETTE_LIST.length}</span>
               </div>
-            )}
-            <div className="flex gap-2">
-              <button
-                onClick={applyJson}
-                className="flex-1 bg-white text-black text-sm font-medium px-4 py-2 rounded-md hover:bg-[#e7e7e9]"
-                title="⌘+Enter to apply"
-              >
-                Apply JSON
-              </button>
-              <button
-                onClick={() => setJsonText(SAMPLE_JSON)}
-                className="text-sm px-3 py-2 rounded-md border border-[#27272a] hover:border-[#404044] text-[#c8c8cb]"
-                title="Reset to sample"
-              >
-                Reset
-              </button>
+              <div className="grid grid-cols-1 gap-1.5">
+                {PALETTE_LIST.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setPalette(p.id)}
+                    className={`group relative rounded-md overflow-hidden border transition ${
+                      palette === p.id ? "border-white/80" : "border-[#27272a] hover:border-[#404044]"
+                    }`}
+                    style={{ background: p.preview.bg }}
+                  >
+                    <div className="h-9 flex items-center justify-between px-2.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="block w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: p.preview.accent }} />
+                        <span className="text-[11.5px] font-medium truncate" style={{ color: p.preview.fg }}>
+                          {p.name}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] uppercase tracking-[2px] text-[#7e7e83] mb-2">Aspect</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(["4:5", "1:1"] as const).map((a) => (
+                  <button
+                    key={a}
+                    onClick={() => setAspect(a)}
+                    className={`px-2 py-2 rounded-md text-[12px] font-medium border transition ${
+                      aspect === a
+                        ? "bg-white text-black border-white"
+                        : "border-[#27272a] hover:border-[#404044] text-[#c8c8cb]"
+                    }`}
+                  >
+                    {a}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        )}
-      </div>
 
-      <div className="px-6 py-4 border-t border-[#1d1d20]">
-        <button
-          onClick={onExportAll}
-          disabled={exportingNow || slidesCount === 0}
-          className="w-full bg-[#e8b86d] text-black text-sm font-semibold px-4 py-2.5 rounded-md hover:bg-[#f0c483] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-        >
-          <Download className="w-4 h-4" />
-          {exportLabel}
-        </button>
-        <p className="text-[10.5px] text-[#7e7e83] mt-2 leading-[1.5]">
-          PNGs render at native 1080 × {ASPECT_DIMS[aspect].h}. Saved locally — images cleared on refresh.
-        </p>
+          <div className="mt-auto px-5 py-4 border-t border-[#1d1d20]">
+            <button
+              onClick={onExportAll}
+              disabled={exportingNow || slidesCount === 0}
+              className="w-full bg-[#e8b86d] text-black text-[13px] font-semibold px-3 py-2.5 rounded-md hover:bg-[#f0c483] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              {exportLabel}
+            </button>
+            <ImportZipButton onImport={onImportZip} disabled={exportingNow} />
+            <p className="text-[10.5px] text-[#7e7e83] mt-2 leading-[1.5]">
+              ZIP includes <code className="text-[#a8a8ac]">carousel.json</code> + images for re-import.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex-1 flex flex-col min-h-0">
+          <button
+            onClick={() => setShowJson(!showJson)}
+            className="px-5 py-3 border-b border-[#1d1d20] flex items-center justify-between text-[11px] uppercase tracking-[2px] text-[#7e7e83] hover:text-white"
+          >
+            <span className="flex items-center gap-2">
+              <FileJson className="w-3.5 h-3.5" /> JSON Input
+            </span>
+            <span>{showJson ? "−" : "+"}</span>
+          </button>
+          {showJson && (
+            <div className="flex-1 flex flex-col min-h-0 px-5 py-4 gap-3">
+              <textarea
+                value={jsonText}
+                onChange={(e) => setJsonText(e.target.value)}
+                spellCheck={false}
+                autoCorrect="off"
+                autoCapitalize="off"
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                    e.preventDefault();
+                    applyJson();
+                  }
+                }}
+                className="flex-1 min-h-0 w-full font-mono text-[12px] leading-[1.55] bg-[#111114] border border-[#1d1d20] rounded-md p-3 resize-none text-[#d4d4d8] focus:outline-none focus:border-[#3a3a40] scroll-thin"
+                placeholder="Paste JSON here…"
+              />
+              {jsonError && (
+                <div className="text-[12px] text-[#ff8888] bg-[#2a1414] border border-[#3a1c1c] rounded-md px-3 py-2">
+                  {jsonError}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={applyJson}
+                  className="flex-1 bg-white text-black text-sm font-medium px-4 py-2 rounded-md hover:bg-[#e7e7e9]"
+                  title="⌘+Enter to apply"
+                >
+                  Apply JSON
+                </button>
+                <button
+                  onClick={() => setJsonText(SAMPLE_JSON)}
+                  className="text-sm px-3 py-2 rounded-md border border-[#27272a] hover:border-[#404044] text-[#c8c8cb]"
+                  title="Reset to sample"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </aside>
+  );
+}
+
+function ImportZipButton({ onImport, disabled }: { onImport: (f: File) => void; disabled?: boolean }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".zip,application/zip"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onImport(f);
+          e.target.value = "";
+        }}
+      />
+      <button
+        onClick={() => inputRef.current?.click()}
+        disabled={disabled}
+        className="w-full mt-2 text-[12px] text-[#c8c8cb] hover:text-white border border-[#27272a] hover:border-[#404044] rounded-md px-4 py-2 flex items-center justify-center gap-2 disabled:opacity-50"
+      >
+        <Upload className="w-3.5 h-3.5" />
+        Import project ZIP
+      </button>
+    </>
   );
 }
 
@@ -469,6 +618,7 @@ function PreviewPane({
 
   const [drag, setDrag] = useState<{
     id: string;
+    kind: "text" | "handle";
     startX: number;
     startY: number;
     startDx: number;
@@ -480,9 +630,8 @@ function PreviewPane({
     const onMove = (e: MouseEvent) => {
       const dx = (e.clientX - drag.startX) / scale;
       const dy = (e.clientY - drag.startY) / scale;
-      onUpdateSlide(drag.id, {
-        textOffset: { dx: drag.startDx + dx, dy: drag.startDy + dy },
-      });
+      const offset = { dx: drag.startDx + dx, dy: drag.startDy + dy };
+      onUpdateSlide(drag.id, drag.kind === "handle" ? { handleOffset: offset } : { textOffset: offset });
     };
     const onUp = () => setDrag(null);
     window.addEventListener("mousemove", onMove);
@@ -499,9 +648,12 @@ function PreviewPane({
 
   const startDrag = (slide: Slide, e: React.MouseEvent) => {
     e.preventDefault();
-    const offset = slide.textOffset ?? { dx: 0, dy: 0 };
+    const target = e.target as HTMLElement | null;
+    const isHandle = !!target?.closest('[data-drag-handle="cta"]');
+    const offset = (isHandle ? slide.handleOffset : slide.textOffset) ?? { dx: 0, dy: 0 };
     setDrag({
       id: slide.id,
+      kind: isHandle ? "handle" : "text",
       startX: e.clientX,
       startY: e.clientY,
       startDx: offset.dx,
@@ -538,6 +690,26 @@ function PreviewPane({
                     <RotateCcw className="w-3.5 h-3.5" />
                   </IconBtn>
                 )}
+                {slide.type === "cta" && slide.handle && (
+                  <HandleAlignBtn
+                    align={slide.handleAlign ?? "left"}
+                    onClick={() => {
+                      const cur: HandleAlign = slide.handleAlign ?? "left";
+                      onUpdateSlide(slide.id, { handleAlign: HANDLE_ALIGN_NEXT[cur] });
+                    }}
+                  />
+                )}
+                {slide.type === "cta" && hasHandleOffset(slide) && (
+                  <IconBtn
+                    title="Reset handle position"
+                    onClick={() => onUpdateSlide(slide.id, { handleOffset: undefined })}
+                  >
+                    <span className="flex items-center gap-1">
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span className="text-[10px]">@</span>
+                    </span>
+                  </IconBtn>
+                )}
                 {slide.imageDataUrl && (
                   <DimBtn
                     overlay={slide.imageOverlay ?? 0}
@@ -546,6 +718,15 @@ function PreviewPane({
                         imageOverlay: nextOverlayLevel(slide.imageOverlay),
                       })
                     }
+                  />
+                )}
+                {slide.imageDataUrl && (
+                  <ToneBtn
+                    tone={slide.textTone ?? "auto"}
+                    onClick={() => {
+                      const next = TEXT_TONE_NEXT[slide.textTone ?? "auto"];
+                      onUpdateSlide(slide.id, { textTone: next === "auto" ? undefined : next });
+                    }}
                   />
                 )}
                 {slide.imageDataUrl && (
@@ -601,15 +782,15 @@ function PreviewPane({
                   slide={slide}
                   paletteId={palette}
                   aspect={aspect}
-                  pageNumber={i + 1}
-                  totalPages={slides.length}
                   slideIndex={i}
                 />
               </div>
               {drag?.id === slide.id && (
                 <div className="absolute top-2 right-2 px-2 py-1 rounded bg-black/70 text-white text-[10px] font-mono pointer-events-none">
                   <Move className="inline w-3 h-3 mr-1" />
-                  {Math.round(slide.textOffset?.dx ?? 0)}, {Math.round(slide.textOffset?.dy ?? 0)}
+                  {drag.kind === "handle" ? "@ " : ""}
+                  {Math.round((drag.kind === "handle" ? slide.handleOffset?.dx : slide.textOffset?.dx) ?? 0)},{" "}
+                  {Math.round((drag.kind === "handle" ? slide.handleOffset?.dy : slide.textOffset?.dy) ?? 0)}
                 </div>
               )}
             </div>
@@ -718,6 +899,35 @@ function DimBtn({ overlay, onClick }: { overlay: number; onClick: () => void }) 
     >
       <Contrast className="w-3.5 h-3.5" />
       <span>{pct}%</span>
+    </button>
+  );
+}
+
+function HandleAlignBtn({ align, onClick }: { align: HandleAlign; onClick: () => void }) {
+  const Icon = align === "center" ? AlignCenter : align === "right" ? AlignRight : AlignLeft;
+  const label = align === "center" ? "Center" : align === "right" ? "Right" : "Left";
+  return (
+    <button
+      onClick={onClick}
+      title={`Handle align: ${label} (click to cycle)`}
+      className="flex items-center gap-1 px-2 py-1.5 rounded text-[11px] font-medium text-[#c8c8cb] hover:text-white border border-[#27272a] hover:border-[#404044]"
+    >
+      <Icon className="w-3.5 h-3.5" />
+      <span>@</span>
+    </button>
+  );
+}
+
+function ToneBtn({ tone, onClick }: { tone: TextTone; onClick: () => void }) {
+  const label = tone === "auto" ? "Auto" : tone === "light" ? "Light" : "Dark";
+  return (
+    <button
+      onClick={onClick}
+      title={`Text tone: ${label} (click to cycle)`}
+      className="flex items-center gap-1 px-2 py-1.5 rounded text-[11px] font-medium text-[#c8c8cb] hover:text-white border border-[#27272a] hover:border-[#404044]"
+    >
+      <Type className="w-3.5 h-3.5" />
+      <span>{label}</span>
     </button>
   );
 }

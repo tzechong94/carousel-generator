@@ -1,15 +1,21 @@
 "use client";
 import { forwardRef, type CSSProperties } from "react";
-import type { ImageLayout, Slide, AspectRatio } from "@/lib/types";
+import type { ImageLayout, Slide, AspectRatio, TextTone } from "@/lib/types";
 import { ASPECT_DIMS, effectiveImageLayout, focalToObjectPosition } from "@/lib/types";
 import { PALETTES, fontClass, getPaletteFrame, radiusForCorners, type PaletteFrame, type PaletteSpec } from "@/lib/palettes";
+
+function applyToneOverride(palette: PaletteSpec, tone: TextTone | undefined): PaletteSpec {
+  if (!tone || tone === "auto") return palette;
+  if (tone === "light") {
+    return { ...palette, fg: "#ffffff", muted: "rgba(255,255,255,0.78)" };
+  }
+  return { ...palette, fg: "#0b0b0c", muted: "rgba(11,11,12,0.7)" };
+}
 
 type Props = {
   slide: Slide;
   paletteId: keyof typeof PALETTES;
   aspect: AspectRatio;
-  pageNumber?: number;
-  totalPages?: number;
   slideIndex?: number;
 };
 
@@ -172,10 +178,11 @@ function computeGeo(layout: ImageLayout | "none", dims: { w: number; h: number }
 }
 
 export const SlideCanvas = forwardRef<HTMLDivElement, Props>(function SlideCanvas(
-  { slide, paletteId, aspect, pageNumber, totalPages, slideIndex },
+  { slide, paletteId, aspect, slideIndex },
   ref
 ) {
-  const palette = PALETTES[paletteId];
+  const basePalette = PALETTES[paletteId];
+  const palette = applyToneOverride(basePalette, slide.textTone);
   const dims = ASPECT_DIMS[aspect];
   const hasImage = !!slide.imageDataUrl;
   const layout: ImageLayout | "none" = hasImage ? effectiveImageLayout(slide) : "none";
@@ -198,7 +205,7 @@ export const SlideCanvas = forwardRef<HTMLDivElement, Props>(function SlideCanva
   return (
     <div ref={ref} style={stageStyle} className={fontClass(palette.body)}>
       {/* bg layer (gradient hue rotation lives here for gradient palette) */}
-      <div style={{ position: "absolute", inset: 0, background: palette.bg, filter: bgFilter }} />
+      <div style={{ position: "absolute", inset: 0, background: basePalette.bg, filter: bgFilter }} />
 
       {/* image layer — positioned per layout, inset to stay within the palette frame */}
       {hasImage && (
@@ -206,18 +213,18 @@ export const SlideCanvas = forwardRef<HTMLDivElement, Props>(function SlideCanva
           slide={slide}
           layout={layout as ImageLayout}
           dims={dims}
-          palette={palette}
+          palette={basePalette}
           frame={frame}
         />
       )}
 
       {/* scrim only for full-bleed — spans the whole slide to match the image */}
-      {hasImage && layout === "full" && (
+      {hasImage && layout === "full" && slide.textTone !== "dark" && (
         <div
           style={{
             position: "absolute",
             inset: 0,
-            background: palette.scrim,
+            background: basePalette.scrim,
             pointerEvents: "none",
           }}
         />
@@ -244,11 +251,7 @@ export const SlideCanvas = forwardRef<HTMLDivElement, Props>(function SlideCanva
         />
       </div>
 
-      <PaletteDeco paletteId={paletteId} palette={palette} dims={dims} />
-
-      {pageNumber !== undefined && totalPages !== undefined && (
-        <PageBadge palette={palette} page={pageNumber} total={totalPages} />
-      )}
+      <PaletteDeco paletteId={paletteId} palette={basePalette} dims={dims} />
     </div>
   );
 });
@@ -728,24 +731,35 @@ function CtaContent({
           {slide.subtitle}
         </p>
       )}
-      {slide.handle && (
-        <div
-          style={{
-            marginTop: 32,
-            padding: `${18 * scale}px ${36 * scale}px`,
-            border: `3px solid ${palette.accent}`,
-            color: palette.accent,
-            borderRadius: 999,
-            fontFamily: "ui-monospace, JetBrains Mono, Menlo, monospace",
-            fontSize: 28 * scale,
-            fontWeight: 700,
-            letterSpacing: 1,
-            alignSelf: textAlign === "center" ? "center" : "flex-start",
-          }}
-        >
-          {slide.handle}
-        </div>
-      )}
+      {slide.handle && (() => {
+        const defaultAlign: "left" | "center" = textAlign === "center" ? "center" : "left";
+        const align = slide.handleAlign ?? defaultAlign;
+        const alignSelf = align === "center" ? "center" : align === "right" ? "flex-end" : "flex-start";
+        return (
+          <div
+            data-drag-handle="cta"
+            style={{
+              marginTop: 32,
+              padding: `${18 * scale}px ${36 * scale}px`,
+              border: `3px solid ${palette.accent}`,
+              color: palette.accent,
+              borderRadius: 999,
+              fontFamily: "ui-monospace, JetBrains Mono, Menlo, monospace",
+              fontSize: 28 * scale,
+              fontWeight: 700,
+              letterSpacing: 1,
+              alignSelf,
+              transform: slide.handleOffset
+                ? `translate(${slide.handleOffset.dx}px, ${slide.handleOffset.dy}px)`
+                : undefined,
+              pointerEvents: "auto",
+              cursor: "grab",
+            }}
+          >
+            {slide.handle}
+          </div>
+        );
+      })()}
       {/* hideAvatarPlaceholder is currently a no-op — kept for future use when we want to suppress the star placeholder behind a full-bleed image */}
       {hideAvatarPlaceholder ? null : null}
     </>
@@ -933,21 +947,3 @@ function PaletteDeco({
   return null;
 }
 
-function PageBadge({ palette, page, total }: { palette: PaletteSpec; page: number; total: number }) {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        right: 56,
-        bottom: 56,
-        fontSize: 24,
-        letterSpacing: 2,
-        color: palette.muted,
-        fontFamily: "ui-monospace, JetBrains Mono, Menlo, monospace",
-        opacity: 0.85,
-      }}
-    >
-      {String(page).padStart(2, "0")} / {String(total).padStart(2, "0")}
-    </div>
-  );
-}

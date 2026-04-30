@@ -60,13 +60,32 @@ export const IMAGE_LAYOUT_LABEL: Record<ImageLayout, string> = {
   circle: "Circle",
 };
 
+export type TextTone = "auto" | "light" | "dark";
+
+export type HandleAlign = "left" | "center" | "right";
+
+export const HANDLE_ALIGN_NEXT: Record<HandleAlign, HandleAlign> = {
+  left: "center",
+  center: "right",
+  right: "left",
+};
+
 export type Slide = SlideData & {
   id: string;
   imageDataUrl?: string;
   imageFocal?: ImageFocal;
   imageLayout?: ImageLayout;
   textOffset?: { dx: number; dy: number };
+  handleOffset?: { dx: number; dy: number };
+  handleAlign?: HandleAlign;
   imageOverlay?: number;
+  textTone?: TextTone;
+};
+
+export const TEXT_TONE_NEXT: Record<TextTone, TextTone> = {
+  auto: "light",
+  light: "dark",
+  dark: "auto",
 };
 
 export const OVERLAY_LEVELS = [0, 0.2, 0.4, 0.6, 0.8] as const;
@@ -81,6 +100,11 @@ export function nextOverlayLevel(current: number | undefined): number {
 export function hasTextOffset(s: Slide): boolean {
   if (!s.textOffset) return false;
   return Math.abs(s.textOffset.dx) > 0.5 || Math.abs(s.textOffset.dy) > 0.5;
+}
+
+export function hasHandleOffset(s: Slide): boolean {
+  if (!s.handleOffset) return false;
+  return Math.abs(s.handleOffset.dx) > 0.5 || Math.abs(s.handleOffset.dy) > 0.5;
 }
 
 export function effectiveImageLayout(slide: Slide): ImageLayout {
