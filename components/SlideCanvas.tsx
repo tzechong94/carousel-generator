@@ -944,6 +944,32 @@ function PaletteDeco({
       </>
     );
   }
+  if (paletteId === "hotsource") {
+    return (
+      <>
+        <div
+          style={{
+            position: "absolute",
+            inset: 28,
+            border: "1px solid rgba(17,17,17,0.14)",
+            borderRadius: 20,
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            top: 56,
+            left: 56,
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            background: palette.accent,
+          }}
+        />
+      </>
+    );
+  }
   return null;
 }
 

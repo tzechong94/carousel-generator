@@ -120,9 +120,23 @@ export const PALETTES: Record<PaletteId, PaletteSpec> = {
     display: "serif",
     body: "sans",
   },
+  hotsource: {
+    id: "hotsource",
+    name: "Hotsource",
+    preview: { bg: "#faf8f5", fg: "#111111", accent: "#c63f1a" },
+    bg: "#faf8f5",
+    fg: "#111111",
+    muted: "#6b6b68",
+    accent: "#c63f1a",
+    scrim: "linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.5) 100%)",
+    overlayTint: "#faf8f5",
+    display: "grotesk",
+    body: "grotesk",
+  },
 };
 
 export const PALETTE_LIST: PaletteSpec[] = [
+  PALETTES.hotsource,
   PALETTES.noir,
   PALETTES.pastel,
   PALETTES.gradient,
@@ -151,6 +165,8 @@ export function getPaletteFrame(id: PaletteId): PaletteFrame {
       return { inset: 24 };
     case "mocha":
       return { inset: 30 };
+    case "hotsource":
+      return { inset: 28, radius: 20 };
     default:
       return { inset: 0 };
   }

@@ -13,7 +13,8 @@ export type PaletteId =
   | "sage"
   | "mocha"
   | "dopamine"
-  | "newsprint";
+  | "newsprint"
+  | "hotsource";
 
 export type CoverSlide = {
   type: "cover";
@@ -137,6 +138,7 @@ const PALETTE_IDS = new Set<string>([
   "mocha",
   "dopamine",
   "newsprint",
+  "hotsource",
 ]);
 
 export function isPaletteId(v: unknown): v is PaletteId {
@@ -157,7 +159,7 @@ export function parseCarouselJson(text: string): { ok: true; doc: CarouselDoc } 
     return {
       ok: false,
       error:
-        'palette must be one of: "noir" | "pastel" | "gradient" | "swiss" | "sage" | "mocha" | "dopamine" | "newsprint"',
+        'palette must be one of: "noir" | "pastel" | "gradient" | "swiss" | "sage" | "mocha" | "dopamine" | "newsprint" | "hotsource"',
     };
   }
   const slidesRaw = obj.slides;
