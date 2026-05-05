@@ -72,7 +72,7 @@ function computeGeo(layout: ImageLayout | "none", dims: { w: number; h: number }
       },
       textAlign: "left",
       alignItems: "flex-start",
-      scale: 0.92,
+      scale: 1.05,
       textWidth: dims.w - padXFull * 2,
     };
   }
@@ -92,7 +92,7 @@ function computeGeo(layout: ImageLayout | "none", dims: { w: number; h: number }
       },
       textAlign: "left",
       alignItems: "flex-start",
-      scale: 0.92,
+      scale: 1.05,
       textWidth: dims.w - padXFull * 2,
     };
   }
@@ -112,7 +112,7 @@ function computeGeo(layout: ImageLayout | "none", dims: { w: number; h: number }
       },
       textAlign: "left",
       alignItems: "flex-start",
-      scale: 0.7,
+      scale: 0.85,
       textWidth: dims.w - halfW - padXSide * 2,
     };
   }
@@ -132,13 +132,13 @@ function computeGeo(layout: ImageLayout | "none", dims: { w: number; h: number }
       },
       textAlign: "left",
       alignItems: "flex-start",
-      scale: 0.7,
+      scale: 0.85,
       textWidth: dims.w - halfW - padXSide * 2,
     };
   }
   if (layout === "circle") {
-    const avatarSize = Math.round(dims.w * 0.32);
-    const avatarTopGap = Math.round(dims.h * 0.16);
+    const avatarSize = Math.round(dims.w * 0.42);
+    const avatarTopGap = Math.round(dims.h * 0.12);
     const textTop = avatarTopGap + avatarSize + 48;
     return {
       textBox: {
@@ -156,7 +156,7 @@ function computeGeo(layout: ImageLayout | "none", dims: { w: number; h: number }
       },
       textAlign: "center",
       alignItems: "center",
-      scale: 0.85,
+      scale: 1.0,
       textWidth: Math.round(dims.w * 0.78),
     };
   }
@@ -245,7 +245,7 @@ export const SlideCanvas = forwardRef<HTMLDivElement, Props>(function SlideCanva
           dims={dims}
           textAlign={geo.textAlign}
           alignItems={geo.alignItems}
-          scale={geo.scale}
+          scale={geo.scale * (slide.textScale ?? 1)}
           textWidth={geo.textWidth}
           isFullBleed={layout === "full"}
         />
@@ -388,9 +388,9 @@ function ImageLayer({
     );
   }
   if (layout === "circle") {
-    // circle is centered and small — naturally stays inside the frame, no inset needed
-    const size = Math.round(dims.w * 0.32);
-    const top = Math.round(dims.h * 0.16);
+    // circle is centered — naturally stays inside the frame, no inset needed
+    const size = Math.round(dims.w * 0.42);
+    const top = Math.round(dims.h * 0.12);
     return (
       <div
         style={{
@@ -478,14 +478,14 @@ function CoverContent({
   scale: number;
   textAlign: "left" | "center";
 }) {
-  const titleSize = fitSize(dims.w * 0.085 * scale, slide.title.length, 28, 100, 0.55);
+  const titleSize = fitSize(dims.w * 0.095 * scale, slide.title.length, 28, 100, 0.55);
   return (
     <>
       {slide.eyebrow && (
         <div
           style={{
             color: palette.accent,
-            fontSize: 26 * scale,
+            fontSize: 30 * scale,
             letterSpacing: 6,
             textTransform: "uppercase",
             fontWeight: 700,
@@ -513,7 +513,7 @@ function CoverContent({
         <div
           style={{
             marginTop: 28,
-            fontSize: 28 * scale,
+            fontSize: 34 * scale,
             lineHeight: 1.4,
             color: palette.muted,
             maxWidth: "100%",
@@ -528,7 +528,7 @@ function CoverContent({
           display: "flex",
           alignItems: "center",
           gap: 16,
-          fontSize: 22 * scale,
+          fontSize: 26 * scale,
           color: palette.fg,
           opacity: 0.85,
           fontFamily: "ui-monospace, JetBrains Mono, Menlo, monospace",
@@ -558,7 +558,7 @@ function ContentContent({
   textAlign: "left" | "center";
   textWidth: number;
 }) {
-  const headingSize = fitSize(dims.w * 0.062 * scale, slide.heading.length, 30, 90, 0.6);
+  const headingSize = fitSize(dims.w * 0.072 * scale, slide.heading.length, 30, 90, 0.6);
   const isCenter = textAlign === "center";
   return (
     <>
@@ -576,7 +576,7 @@ function ContentContent({
           <span
             style={{
               color: palette.accent,
-              fontSize: 64 * scale,
+              fontSize: 76 * scale,
               fontWeight: 800,
               lineHeight: 0.9,
               letterSpacing: -3,
@@ -628,7 +628,7 @@ function ContentContent({
           style={{
             marginTop: 22,
             marginBottom: 0,
-            fontSize: 28 * scale,
+            fontSize: 34 * scale,
             lineHeight: 1.5,
             color: palette.muted,
             fontWeight: 400,
@@ -656,7 +656,7 @@ function ContentContent({
             <li
               key={i}
               style={{
-                fontSize: 26 * scale,
+                fontSize: 32 * scale,
                 lineHeight: 1.4,
                 color: palette.fg,
                 display: "flex",
@@ -669,7 +669,7 @@ function ContentContent({
                   color: palette.accent,
                   flexShrink: 0,
                   fontWeight: 700,
-                  fontSize: 20 * scale,
+                  fontSize: 24 * scale,
                   letterSpacing: 1,
                   fontFamily: "ui-monospace, JetBrains Mono, Menlo, monospace",
                   minWidth: 32,
@@ -701,7 +701,7 @@ function CtaContent({
   textAlign: "left" | "center";
   hideAvatarPlaceholder: boolean;
 }) {
-  const titleSize = fitSize(dims.w * 0.075 * scale, slide.title.length, 26, 80, 0.6);
+  const titleSize = fitSize(dims.w * 0.085 * scale, slide.title.length, 26, 80, 0.6);
   return (
     <>
       <h2
@@ -721,7 +721,7 @@ function CtaContent({
         <p
           style={{
             marginTop: 24,
-            fontSize: 28 * scale,
+            fontSize: 34 * scale,
             lineHeight: 1.4,
             color: palette.muted,
             margin: 0,
@@ -745,7 +745,7 @@ function CtaContent({
               color: palette.accent,
               borderRadius: 999,
               fontFamily: "ui-monospace, JetBrains Mono, Menlo, monospace",
-              fontSize: 28 * scale,
+              fontSize: 32 * scale,
               fontWeight: 700,
               letterSpacing: 1,
               alignSelf,

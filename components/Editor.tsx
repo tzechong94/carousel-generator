@@ -13,6 +13,7 @@ import {
   IMAGE_LAYOUT_LABEL,
   newSlideId,
   nextOverlayLevel,
+  nextTextScale,
   parseCarouselJson,
   TEXT_TONE_NEXT,
   type AspectRatio,
@@ -28,10 +29,21 @@ import { PALETTE_LIST, PALETTES } from "@/lib/palettes";
 import { SAMPLE_JSON } from "@/lib/sample";
 import { dataUrlExtension, dataUrlToBase64, downloadAllAsZip, downloadDataUrl, nodeToPng, prepareForExport, readProjectZip } from "@/lib/export";
 import { SlideCanvas } from "./SlideCanvas";
-import { AlignCenter, AlignLeft, AlignRight, ArrowDownToLine, ArrowUpToLine, Circle, Contrast, Download, FileJson, HelpCircle, ImageIcon, Move, Plus, RotateCcw, Sparkles, Trash2, Type, Upload, X } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, ArrowDownToLine, ArrowUpToLine, CaseSensitive, Circle, Contrast, Download, FileJson, HelpCircle, ImageIcon, Move, Plus, RotateCcw, Sparkles, Trash2, Type, Upload, X } from "lucide-react";
 import { HelpModal } from "./HelpModal";
 
 const STORAGE_KEY = "carousel-generator:v1";
+
+function slugify(s: string | undefined): string {
+  if (!s) return "";
+  return s
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+}
 
 type SavedState = {
   palette: PaletteId;
@@ -139,6 +151,7 @@ export default function Editor() {
           if (prev[i].handleOffset) next[i].handleOffset = prev[i].handleOffset;
           if (prev[i].handleAlign) next[i].handleAlign = prev[i].handleAlign;
           if (prev[i].textTone) next[i].textTone = prev[i].textTone;
+          if (prev[i].textScale !== undefined) next[i].textScale = prev[i].textScale;
         }
       }
       return next;
@@ -253,7 +266,9 @@ export default function Editor() {
         pngs.push({ name: `slide-${String(i + 1).padStart(2, "0")}.png`, dataUrl });
         setExporting({ kind: "all", done: i + 1, total });
       }
-      await downloadAllAsZip(pngs, `carousel-${palette}-${aspect.replace(":", "x")}.zip`, extras);
+      const cover = slides.find((s) => s.type === "cover") as Extract<Slide, { type: "cover" }> | undefined;
+      const slug = slugify(cover?.title) || `carousel-${palette}-${aspect.replace(":", "x")}`;
+      await downloadAllAsZip(pngs, `${slug}.zip`, extras);
     } finally {
       setExporting(null);
     }
@@ -315,6 +330,7 @@ export default function Editor() {
         if (typeof o.dx === "number" && typeof o.dy === "number") ui.handleOffset = { dx: o.dx, dy: o.dy };
       }
       if (r.handleAlign === "left" || r.handleAlign === "center" || r.handleAlign === "right") ui.handleAlign = r.handleAlign;
+      if (typeof r.textScale === "number") ui.textScale = r.textScale;
       uiBySlot.push(ui);
     }
 
@@ -682,6 +698,13 @@ function PreviewPane({
                 {String(i + 1).padStart(2, "0")} · {slide.type}
               </div>
               <div className="flex items-center gap-1.5">
+                <SizeBtn
+                  scale={slide.textScale ?? 1}
+                  onClick={() => {
+                    const next = nextTextScale(slide.textScale);
+                    onUpdateSlide(slide.id, { textScale: Math.abs(next - 1) < 0.01 ? undefined : next });
+                  }}
+                />
                 {hasTextOffset(slide) && (
                   <IconBtn
                     title="Reset text position"
@@ -898,6 +921,20 @@ function DimBtn({ overlay, onClick }: { overlay: number; onClick: () => void }) 
       className="flex items-center gap-1 px-2 py-1.5 rounded text-[11px] font-medium text-[#c8c8cb] hover:text-white border border-[#27272a] hover:border-[#404044]"
     >
       <Contrast className="w-3.5 h-3.5" />
+      <span>{pct}%</span>
+    </button>
+  );
+}
+
+function SizeBtn({ scale, onClick }: { scale: number; onClick: () => void }) {
+  const pct = Math.round(scale * 100);
+  return (
+    <button
+      onClick={onClick}
+      title={`Text size: ${pct}% (click to cycle)`}
+      className="flex items-center gap-1 px-2 py-1.5 rounded text-[11px] font-medium text-[#c8c8cb] hover:text-white border border-[#27272a] hover:border-[#404044]"
+    >
+      <CaseSensitive className="w-4 h-4" />
       <span>{pct}%</span>
     </button>
   );

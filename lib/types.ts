@@ -81,7 +81,17 @@ export type Slide = SlideData & {
   handleAlign?: HandleAlign;
   imageOverlay?: number;
   textTone?: TextTone;
+  textScale?: number;
 };
+
+export const TEXT_SCALES = [0.85, 1.0, 1.15, 1.3] as const;
+
+export function nextTextScale(current: number | undefined): number {
+  const cur = current ?? 1.0;
+  const idx = TEXT_SCALES.findIndex((s) => Math.abs(s - cur) < 0.01);
+  const nextIdx = (idx + 1) % TEXT_SCALES.length;
+  return TEXT_SCALES[nextIdx];
+}
 
 export const TEXT_TONE_NEXT: Record<TextTone, TextTone> = {
   auto: "light",
